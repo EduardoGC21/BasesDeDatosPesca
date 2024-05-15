@@ -1,0 +1,532 @@
+--CARGA INICIAL
+
+--DROP TABLE IF EXISTS pesca;
+CREATE TABLE IF NOT EXISTS pesca(
+    año text,
+    entidad_federativa text,
+    nombre_localidad text,
+    mes_corte text,
+    origen text,
+    subespecie text,
+    peso_desembarcado_kg text,
+    peso_vivo_kg text,
+    valor_pesos text,
+    especie text,
+    clave_entidad text,
+    clave_oficina text
+);
+
+--LIMPIEZA, se llevo a cabo en una transaccion
+BEGIN TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+
+    --
+    --QUITAR DOBLES ESPACIOS EN COLUMAS DE TEXTO
+    --
+    UPDATE pesca
+    SET nombre_localidad = regexp_replace(nombre_localidad, '\s+', ' ', 'g'),
+        entidad_federativa = regexp_replace(entidad_federativa, '\s+', ' ', 'g'),
+        subespecie = regexp_replace(subespecie, '\s+', ' ', 'g');
+
+    -- QUITAR () EN COLUMNAS DE TEXTO
+    UPDATE pesca
+    SET subespecie = regexp_replace(subespecie, '\(.*?\)', '', 'g') WHERE subespecie ~ '\(.*?\)';
+    UPDATE pesca
+    SET nombre_localidad = regexp_replace(nombre_localidad, '\(.*?\)', '', 'g') WHERE nombre_localidad ~ '\(.*?\)';
+
+    --
+    --LIMPIAR NOMBRES DE CUIDADES
+    --
+
+    UPDATE pesca
+    SET nombre_localidad = REPLACE(nombre_localidad, '�', '');
+
+    UPDATE pesca
+    SET nombre_localidad =
+        CASE
+            WHEN nombre_localidad = 'PUERTO PE? ASCO' OR nombre_localidad = 'PUERTO PEASCO' OR nombre_localidad='PUERTO PE?ASCO' THEN 'PUERTO PEÑASCO'
+            WHEN nombre_localidad = 'PE? ITA DE JALTEMBA' OR pesca.nombre_localidad= 'PE?ITA DE JALTEMBA' OR nombre_localidad = 'PEITA DE JALTEMBA' THEN 'PEÑITA DE JALTEMBA'
+            WHEN nombre_localidad = 'SANTA MAR? A HUATULCO' OR nombre_localidad='SANTA MAR?A HUATULCO' THEN 'SANTA MARIA HUATULCO'
+            WHEN nombre_localidad = 'CD. ALTAMIRANO' THEN 'CIUDAD ALTAMIRANO'
+            WHEN nombre_localidad = 'CD. CONSTITUCION' THEN 'CIUDAD CONSTITUCION'
+            WHEN nombre_localidad = 'CD. OBREGON' THEN 'CIUDAD OBREGON'
+            WHEN nombre_localidad = 'PTO. ADOLFO LOPEZ MATEOS' THEN 'PUERTO ADOLFO LOPEZ MATEOS'
+            ELSE nombre_localidad
+        END;
+
+    --CAMBIAR NOMBRE DE MEXICO A ESTADO DE MEXICO
+    UPDATE pesca
+    SET entidad_federativa = 'ESTADO DE MEXICO'
+    WHERE entidad_federativa =  'MEXICO';
+
+    -- CAMBIAR CLAVE OFICINA DE YUCATAN SAN FELIPE ERRONEA
+    UPDATE pesca
+    SET clave_oficina = '3107'
+    WHERE clave_oficina =  '207' and entidad_federativa = 'YUCATAN';
+
+    UPDATE pesca
+    SET clave_oficina = '2510'
+    WHERE clave_oficina =  '202' and entidad_federativa = 'SINALOA';
+
+    UPDATE pesca
+    SET clave_oficina = '3010'
+    WHERE clave_oficina =  '1805' and entidad_federativa = 'VERACRUZ';
+
+    ---
+    --- SUBESPECIES
+    ---
+
+    -- Quitar �
+    UPDATE pesca
+    SET subespecie = REPLACE(subespecie, '�', '');
+
+    -- Quitar " DE ACOMPANAMIENTODE ACOMPAAMIENTO"
+    UPDATE pesca
+    SET subespecie = REPLACE(subespecie, ' DE ACOMPANAMIENTODE ACOMPAAMIENTO', '');
+
+    -- Quitar LLL
+    UPDATE pesca
+    SET subespecie = REPLACE(subespecie, 'LLL', 'LL');
+
+    -- Reintroducir Ñ faltantes
+    UPDATE pesca
+        SET subespecie =
+            CASE
+                WHEN subespecie = 'CANGREJO ERMITAO' THEN 'CANGREJO ERMITAÑO'
+                WHEN subespecie = 'CARACOL DE UA' THEN 'CARACOL DE UÑA'
+                WHEN subespecie = 'FAUNA DE ACOMPAAMIENTO' THEN 'FAUNA DE ACOMPAÑAMIENTO'
+                WHEN subespecie = 'MEDUSA BOLA DE CAON' THEN 'MEDUSA BOLA DE CAÑON'
+                WHEN subespecie = 'MOJARRA ESPAOLA' THEN 'MOJARRA ESPAÑOLA'
+                WHEN subespecie = 'PEZ SEORITA' THEN 'PEZ SEÑORITA'
+                WHEN subespecie = 'PIA' THEN 'PIÑA'
+                ELSE subespecie
+            END;
+
+
+    --
+    -- LIMPIAR NUMEROS PARA CONVERTIR
+    --
+
+    -- Quitar comas y 0 de enfrente para limpiar numeros y poder convertirlos
+    UPDATE pesca
+    SET peso_desembarcado_kg = REPLACE(peso_desembarcado_kg, ',', ''),
+    peso_vivo_kg = REPLACE(peso_vivo_kg, ',', ''),
+    valor_pesos = REPLACE(valor_pesos, ',', '');
+
+    UPDATE pesca
+    SET valor_pesos = LEFT(valor_pesos, POSITION('.' IN valor_pesos) - 1);
+
+    UPDATE pesca
+    SET valor_pesos =
+        CASE
+            WHEN valor_pesos IS NULL OR valor_pesos = '' OR valor_pesos='""' OR valor_pesos = 'CAMARO' THEN '0'
+            ELSE valor_pesos
+        END;
+
+    --
+    -- QUITAR ESPACIOS FINALES
+    --
+
+    UPDATE pesca
+    SET año = RTRIM(año),
+        entidad_federativa = RTRIM(entidad_federativa),
+        nombre_localidad = RTRIM(nombre_localidad),
+        mes_corte = RTRIM(mes_corte),
+        origen = RTRIM(origen),
+        subespecie = RTRIM(subespecie),
+        peso_desembarcado_kg = RTRIM(peso_desembarcado_kg),
+        peso_vivo_kg = RTRIM(peso_vivo_kg),
+        valor_pesos = RTRIM(valor_pesos),
+        especie = RTRIM(especie),
+        clave_entidad = RTRIM(clave_entidad),
+        clave_oficina = RTRIM(clave_oficina);
+
+
+    --
+    -- CONVERTIR TIPOS DE DATOS
+    --
+
+    ALTER TABLE pesca
+    ALTER COLUMN peso_vivo_kg
+    SET DATA TYPE INTEGER USING peso_vivo_kg::INTEGER;
+
+    ALTER TABLE pesca
+    ALTER COLUMN peso_desembarcado_kg
+    SET DATA TYPE INTEGER USING peso_desembarcado_kg::INTEGER;
+
+    ALTER TABLE pesca
+    ALTER COLUMN valor_pesos
+    SET DATA TYPE INTEGER USING valor_pesos::INTEGER;
+
+    ALTER TABLE pesca
+    ALTER COLUMN clave_entidad
+    SET DATA TYPE INTEGER USING clave_entidad::INTEGER;
+
+    ALTER TABLE pesca
+    ALTER COLUMN clave_oficina
+    SET DATA TYPE INTEGER USING clave_oficina::INTEGER;
+
+    ALTER TABLE pesca
+    ALTER COLUMN año
+    SET DATA TYPE INTEGER USING año::INTEGER;
+
+    UPDATE pesca
+    SET peso_vivo_kg=peso_desembarcado_kg
+    WHERE peso_vivo_kg=0 AND peso_desembarcado_kg>pesca.peso_vivo_kg;
+
+END TRANSACTION;
+
+
+
+
+
+--
+--     --
+--     -- RAZONAMIENTO LIMPIEZA
+--     --
+--
+--     -- CLAVES ENT
+--     --Debe haber mismo numero de clave de entidad y entidad fed y si esta bien
+--     SELECT DISTINCT clave_entidad, entidad_federativa
+--     FROM pesca;
+--
+--      --Mismo numero de claves de oficina y nombre_localidad
+--     WITH tablaDist AS (
+--     SELECT DISTINCT clave_oficina, nombre_localidad
+--     FROM pesca
+--     ORDER BY nombre_localidad)
+--
+--     SELECT nombre_localidad AS nombre, COUNT(*) AS contador
+--     FROM tablaDist
+--     GROUP BY nombre_localidad
+--     HAVING COUNT(*) > 1;
+--
+--     --SAN FELIPE, ROSARIO Y TUXPAN estan duplicados
+--     --Hay entradas de TUXPAN con dos claves de oficinas distintas, nos quedaremos con la primera que aparece 1805
+--     SELECT *
+--     FROM pesca
+--     WHERE clave_oficina = '3010' OR clave_oficina = '1805';
+--
+--     --Hay entradas de Rosario con dos claves de oficina, nos quedamos con la primera 202
+--     SELECT *
+--     FROM pesca
+--     WHERE nombre_localidad = 'EL ROSARIO';
+--
+--     SELECT *
+--     FROM pesca
+--     WHERE nombre_localidad = 'SAN FELIPE';
+--
+--     -- SUBESPECIES
+--     -- Existen varios errores en la columna subespecie
+--     select distinct pesca.subespecie from pesca; -- 710 before 702 AFTER
+--
+--     SELECT distinct subespecie
+--     FROM pesca
+--     WHERE subespecie LIKE '%�%';
+--
+--     --MEJILL,"1 -- SE QUITO DEL EXCEL
+--     select * from pesca where subespecie = 'MEJILL,"1';
+/*
+    Habia casos en que peso desembarcado era mayor al peso vivo (0) lo cual no tiene sentido y los equiparamos
+    SELECT *
+    FROM pesca
+    WHERE pesca.peso_desembarcado_kg> pesca.peso_vivo_kg;
+ */
+
+
+
+--NORMALIZACION: CREACION DE TABLAS e INDICES
+CREATE SCHEMA IF NOT EXISTS pesca;
+
+    CREATE TABLE IF NOT EXISTS pesca.nombre_principal (
+        id SMALLSERIAL PRIMARY KEY NOT NULL,
+        nombre VARCHAR(256) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS pesca.nombre_comun (
+        id SMALLSERIAL PRIMARY KEY NOT NULL,
+        nombre VARCHAR(256)
+    );
+
+    CREATE TABLE IF NOT EXISTS pesca.tipo_pez(
+        id SMALLSERIAL PRIMARY KEY NOT NULL,
+        nombre_principal SMALLINT NOT NULL,
+        nombre_comun SMALLINT NOT NULL,
+        FOREIGN KEY (nombre_principal) REFERENCES pesca.nombre_principal(id) ON DELETE CASCADE ON UPDATE RESTRICT,
+        FOREIGN KEY (nombre_comun) REFERENCES pesca.nombre_comun(id) ON DELETE CASCADE ON UPDATE RESTRICT
+    );
+
+    CREATE INDEX nombre_principal_id ON pesca.tipo_pez USING btree (nombre_principal);
+    CREATE INDEX nombre_comun_id ON pesca.tipo_pez USING btree (nombre_comun);
+
+    CREATE TABLE IF NOT EXISTS pesca.entidad (
+        id SMALLINT PRIMARY KEY NOT NULL, --sera la clave de entidad
+        nombre_entidad VARCHAR(256) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS pesca.oficina (
+        id SMALLINT PRIMARY KEY NOT NULL, --sera la clave de oficina
+        entidad SMALLINT NOT NULL,
+        nombre_localidad VARCHAR(256) NOT NULL,
+        FOREIGN KEY (entidad) REFERENCES pesca.entidad(id) ON DELETE CASCADE ON UPDATE RESTRICT
+    );
+
+    CREATE INDEX entidad_id ON pesca.oficina USING btree (entidad);
+
+    CREATE TABLE IF NOT EXISTS pesca.modalidad(
+        id SMALLSERIAL PRIMARY KEY NOT NULL,
+        tipo VARCHAR(16) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS pesca.meses(
+        id SMALLSERIAL PRIMARY KEY NOT NULL,
+        mes VARCHAR(16) NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS pesca.pesca (
+        id BIGSERIAL PRIMARY KEY NOT NULL,
+        año SMALLINT NOT NULL,
+        mes_corte SMALLINT NOT NULL,
+        oficina SMALLINT NOT NULL,
+        origen SMALLINT NOT NULL,
+        tipo_pez SMALLINT NOT NULL,
+        peso_vivo_kg BIGINT NOT NULL,
+        peso_desembarcado_kg BIGINT NOT NULL,
+        valor_pesos BIGINT NOT NULL,
+        FOREIGN KEY (oficina) REFERENCES pesca.oficina(id) ON DELETE CASCADE ON UPDATE RESTRICT,
+        FOREIGN KEY (tipo_pez) REFERENCES pesca.tipo_pez(id) ON DELETE CASCADE ON UPDATE RESTRICT,
+        FOREIGN KEY (origen) REFERENCES pesca.modalidad(id) ON DELETE CASCADE ON UPDATE RESTRICT,
+        FOREIGN KEY (mes_corte) REFERENCES pesca.meses(id) ON DELETE CASCADE ON UPDATE RESTRICT
+    );
+    CREATE INDEX oficina_id ON pesca.pesca USING btree (oficina);
+    CREATE INDEX tipo_pez_id ON pesca.pesca USING btree (tipo_pez);
+    CREATE INDEX origen_id ON pesca.pesca USING btree (origen);
+    CREATE INDEX mes_corte_id ON pesca.pesca USING btree (mes_corte);
+
+
+-- INSERCION DE DATOS
+INSERT INTO pesca.nombre_principal (nombre)
+SELECT DISTINCT especie
+FROM public.pesca
+ORDER BY especie;
+
+INSERT INTO pesca.nombre_comun (nombre)
+SELECT DISTINCT subespecie
+FROM public.pesca
+ORDER BY subespecie;
+
+INSERT INTO pesca.tipo_pez (nombre_principal, nombre_comun)
+SELECT DISTINCT nombre_principal.id, nombre_comun.id
+FROM public.pesca
+JOIN pesca.nombre_principal ON public.pesca.especie=pesca.nombre_principal.nombre
+JOIN pesca.nombre_comun ON public.pesca.subespecie=pesca.nombre_comun.nombre;
+
+INSERT INTO pesca.entidad (id, nombre_entidad)
+SELECT DISTINCT clave_entidad, entidad_federativa
+FROM public.pesca
+ORDER BY clave_entidad;
+
+INSERT INTO pesca.oficina (id, entidad, nombre_localidad)
+SELECT DISTINCT clave_oficina, clave_entidad, nombre_localidad
+FROM public.pesca
+INNER JOIN pesca.entidad ON public.pesca.clave_entidad = pesca.entidad.id
+ORDER BY clave_entidad, clave_oficina;
+
+INSERT INTO pesca.modalidad (tipo)
+SELECT DISTINCT origen
+FROM public.pesca;
+
+INSERT INTO pesca.meses (mes) VALUES
+('ENERO'),
+('FEBRERO'),
+('MARZO'),
+('ABRIL'),
+('MAYO'),
+('JUNIO'),
+('JULIO'),
+('AGOSTO'),
+('SEPTIEMBRE'),
+('OCTUBRE'),
+('NOVIEMBRE'),
+('DICIEMBRE');
+
+
+SELECT *
+FROM pesca.tipo_pez;
+
+INSERT INTO pesca.pesca (año, mes_corte, oficina, origen, tipo_pez, peso_vivo_kg, peso_desembarcado_kg, valor_pesos)
+SELECT
+    p.año,
+    m.id AS mes_corte,
+    o.id AS oficina,
+    mod.id AS origen,
+    tp.id AS tipo_pez,
+    p.peso_vivo_kg,
+    p.peso_desembarcado_kg,
+    p.valor_pesos
+FROM public.pesca p
+JOIN pesca.meses m ON m.mes = p.mes_corte
+JOIN pesca.oficina o ON o.id = p.clave_oficina
+JOIN pesca.modalidad mod ON mod.tipo = p.origen
+JOIN pesca.tipo_pez tp ON tp.nombre_principal = (SELECT id FROM pesca.nombre_principal WHERE nombre = p.especie)
+                        AND tp.nombre_comun = (SELECT id FROM pesca.nombre_comun WHERE nombre = p.subespecie)
+ORDER BY p.año, m.id;
+
+
+--ANÁLISIS DE DATOS: QUERIES y VISTAS
+
+SELECT COUNT(*)
+FROM pesca.pesca;
+
+--Vista con todo unido
+CREATE VIEW pesca.todo_unido AS
+SELECT
+    pes.id AS pesca_id,
+    pes.año,
+    m.mes AS mes_corte,
+    o.nombre_localidad AS localidad_oficina,
+    e.nombre_entidad AS entidad_federativa,
+    mo.tipo AS modalidad_origen,
+    tp.id AS tipo_pez,
+    np.nombre AS nombre_principal,
+    nc.nombre AS nombre_comun,
+    pes.peso_vivo_kg,
+    pes.peso_desembarcado_kg,
+    pes.valor_pesos
+FROM pesca.pesca pes
+JOIN pesca.meses m ON pes.mes_corte = m.id
+JOIN pesca.oficina o ON pes.oficina = o.id
+JOIN pesca.entidad e ON o.entidad = e.id
+JOIN pesca.modalidad mo ON pes.origen = mo.id
+JOIN pesca.tipo_pez tp ON pes.tipo_pez = tp.id
+JOIN pesca.nombre_principal np ON tp.nombre_principal = np.id
+JOIN pesca.nombre_comun nc ON tp.nombre_comun = nc.id;
+
+CREATE VIEW pesca.camaron AS
+SELECT *
+FROM pesca.todo_unido
+WHERE nombre_principal= 'CAMARON';
+
+CREATE VIEW pesca.pulpo AS
+SELECT *
+FROM pesca.todo_unido
+WHERE nombre_principal= 'PULPO';
+
+CREATE VIEW pesca.sardina AS
+SELECT *
+FROM pesca.todo_unido
+WHERE nombre_principal= 'SARDINA';
+
+CREATE VIEW pesca.atun AS
+SELECT *
+FROM pesca.todo_unido
+WHERE nombre_principal= 'ATUN';
+
+--1 Total por año en los 3 años
+SELECT *
+FROM pesca.pesca;
+SELECT año, SUM(valor_pesos) monetario, SUM(peso_desembarcado_kg) kg
+FROM pesca.pesca
+GROUP by año;
+-- 2 Comparacion entre acuacultura y captura global en los 3 a;os
+SELECT año, SUM(valor_pesos) valor_mon, SUM(peso_desembarcado_kg) kg
+FROM pesca.todo_unido
+WHERE modalidad_origen='ACUACULTURA'
+GROUP BY año;
+
+SELECT año, SUM(valor_pesos) valor_mon, SUM(peso_desembarcado_kg) kg
+FROM pesca.todo_unido
+WHERE modalidad_origen='CAPTURA'
+GROUP BY año;
+
+
+
+--3 Entidades que mas sacan global
+SELECT entidad_federativa, SUM(valor_pesos) pesos, SUM(peso_desembarcado_kg) kg
+FROM pesca.todo_unido
+GROUP BY entidad_federativa
+ORDER BY pesos DESC, kg DESC;
+
+--4 Ciudades rankeadas por valor pesos
+SELECT localidad_oficina, SUM(valor_pesos) pesos, SUM(peso_desembarcado_kg) kg
+FROM pesca.todo_unido
+GROUP BY localidad_oficina
+ORDER BY pesos DESC, kg DESC
+LIMIT 10;
+
+--5 Tipo peces mas capturados en Sinaloa
+SELECT nombre_principal, SUM(valor_pesos) pesos, SUM(peso_desembarcado_kg) kg
+FROM pesca.todo_unido
+WHERE entidad_federativa= 'SINALOA'
+GROUP BY nombre_principal
+ORDER BY pesos DESC, kg DESC;
+--6 Top nombres principales mas desembarcados
+SELECT nombre_principal, SUM(peso_desembarcado_kg) kg
+FROM pesca.todo_unido
+GROUP BY nombre_principal
+ORDER BY kg DESC
+LIMIT 10;
+
+--Top nombres comunes mas desembarcados
+SELECT nombre_comun, SUM(peso_desembarcado_kg) kg
+FROM pesca.todo_unido
+GROUP BY nombre_comun
+ORDER BY kg DESC;
+
+-- 7 Top nombres principales mayor valormon
+SELECT nombre_principal, SUM(valor_pesos) pesos
+FROM pesca.todo_unido
+GROUP BY nombre_principal
+ORDER BY pesos DESC
+LIMIT 10;
+
+--Top nombres comunes mayor valormon
+SELECT nombre_comun, SUM(valor_pesos) pesos
+FROM pesca.todo_unido
+GROUP BY nombre_comun
+ORDER BY pesos DESC;
+
+--8 Top 10 nombres principales menor valormon
+SELECT nombre_principal, SUM(valor_pesos) pesos
+FROM pesca.todo_unido
+GROUP BY nombre_principal
+ORDER BY pesos ASC
+LIMIT 10;
+
+
+--Ciudades de sinaloa rankeadas por valor pesos
+SELECT localidad_oficina, SUM(valor_pesos) pesos, SUM(peso_desembarcado_kg) kg
+FROM pesca.todo_unido
+WHERE entidad_federativa = 'SINALOA'
+GROUP BY localidad_oficina
+ORDER BY pesos DESC, kg DESC;
+
+
+--Analisis mensual
+--9 Camaron
+SELECT año, meses.id, SUM(valor_pesos) dinero, SUM(peso_desembarcado_kg) kg
+FROM pesca.camaron
+JOIN pesca.meses ON pesca.camaron.mes_corte=pesca.meses.mes
+GROUP BY año, pesca.meses.id
+ORDER BY año, pesca.meses.id;
+-- 10Sardina
+SELECT año, meses.id, SUM(valor_pesos) dinero, SUM(peso_desembarcado_kg) kg
+FROM pesca.sardina
+JOIN pesca.meses ON pesca.sardina.mes_corte=pesca.meses.mes
+GROUP BY año, pesca.meses.id
+ORDER BY año, pesca.meses.id;
+
+--11 atun
+SELECT año, meses.id, SUM(valor_pesos) dinero, SUM(peso_desembarcado_kg) kg
+FROM pesca.atun
+JOIN pesca.meses ON pesca.atun.mes_corte=pesca.meses.mes
+GROUP BY año, pesca.meses.id
+ORDER BY año, pesca.meses.id;
+
+--12 Pulpo
+SELECT año, meses.id, SUM(valor_pesos) dinero, SUM(peso_desembarcado_kg) kg
+FROM pesca.pulpo
+JOIN pesca.meses ON pesca.pulpo.mes_corte=pesca.meses.mes
+GROUP BY año, pesca.meses.id
+ORDER BY año, pesca.meses.id;
+
+--Creación de atributos para entrenamientos de modelos: FUNCIONES DE VENTANA
