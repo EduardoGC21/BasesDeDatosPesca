@@ -13,3 +13,5 @@ Pasos para replicar
 
 Los csv originales se encuentran en:
 Producción Pesquera - datos.gob.mx/busca. (n.a.). Gob.mx. Recuperado mayo 15, 2024, de https://datos.gob.mx/busca/dataset/produccion-pesquera
+
+Igualmente se incluyó el excel con las graficas del reporte escrito.
