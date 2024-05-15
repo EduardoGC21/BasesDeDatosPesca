@@ -7,5 +7,5 @@ Pasos para replicar
 3) Conectarla a tu IDE de postgres
 4) Crear la tabla que aparece al inicio del codigo y importar los datos internamente de los csv
 5) Correr la limpieza
-6) Correr la parte de normalización que creara un schema nuevo.
+6) Correr la parte de normalización que creara un schema nuevo y tablas, las cuales llenara de datos con los datos raw de la pesca.
 7) Proceder a hacer las ventanas y querys bajo el nuevo schema.
