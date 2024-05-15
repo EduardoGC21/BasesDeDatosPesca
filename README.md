@@ -10,3 +10,6 @@ Pasos para replicar
 6) Correr la parte de normalización que creara un schema nuevo y tablas, las cuales llenara de datos con los datos raw de la pesca.
 7) Proceder a hacer las ventanas y querys bajo el nuevo schema de análisis de datos
 8) Hacer las funciones de ventana para entrenamiento de modelos.
+
+Los csv originales se encuentran en:
+Producción Pesquera - datos.gob.mx/busca. (n.a.). Gob.mx. Recuperado mayo 15, 2024, de https://datos.gob.mx/busca/dataset/produccion-pesquera
