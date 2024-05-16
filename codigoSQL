@@ -530,3 +530,81 @@ GROUP BY año, pesca.meses.id
 ORDER BY año, pesca.meses.id;
 
 --Creación de atributos para entrenamientos de modelos: FUNCIONES DE VENTANA
+-- Esta query saca las ciudades que más valor en pesca generaron en 2022
+with ranked_localidad as (SELECT p.año,
+                                 o.nombre_localidad,
+                                 SUM(p.valor_pesos) AS Pesos,
+                                 RANK() OVER (PARTITION BY p.año ORDER BY SUM(p.valor_pesos) DESC) AS ran
+                          FROM pesca.pesca p
+                                   JOIN pesca.oficina o ON p.oficina = o.id
+                                   JOIN pesca.meses m ON p.mes_corte = m.id
+                          Where año = 2022
+
+                          GROUP BY p.año, o.nombre_localidad
+                          ORDER BY p.año, ran)
+SELECT ranked_localidad.año, ranked_localidad.nombre_localidad, ranked_localidad.Pesos, ranked_localidad.ran
+From ranked_localidad
+where ran <= 10;
+
+-- estas son las ciudades que más peso desembarcaron en 2022
+with ranked_localidad as (SELECT p.año,
+                                 o.nombre_localidad,
+                                 SUM(p.valor_pesos) AS Pesos,
+                                 RANK() OVER (PARTITION BY p.año ORDER BY SUM(p.peso_desembarcado_kg) DESC) AS ran
+                          FROM pesca.pesca p
+                                   JOIN pesca.oficina o ON p.oficina = o.id
+                                   JOIN pesca.meses m ON p.mes_corte = m.id
+                          Where año = 2022
+
+                          GROUP BY p.año, o.nombre_localidad
+                          ORDER BY p.año, ran)
+SELECT ranked_localidad.año, ranked_localidad.nombre_localidad, ranked_localidad.Pesos, ranked_localidad.ran
+From ranked_localidad
+where ran <= 10;
+
+
+-- Esta query lo que hace es calcular el crecimiento anual de los kg pescados de cada especie d eun año a otro
+WITH cre_anual as (SELECT p.año,
+                          np.nombre                                                                      AS Species,
+                          SUM(p.peso_desembarcado_kg)                                                            AS Peso_año_actual,
+                          LAG(SUM(p.peso_desembarcado_kg), 1)
+                          OVER (PARTITION BY np.nombre ORDER BY p.año)                                   AS Peso_año_pasado,
+                          (SUM(p.peso_desembarcado_kg) -
+                           LAG(SUM(p.peso_desembarcado_kg), 1) OVER (PARTITION BY np.nombre ORDER BY p.año)) /
+                          LAG(SUM(p.peso_desembarcado_kg), 1) OVER (PARTITION BY np.nombre ORDER BY p.año) *
+                          100                                                                            AS crecimiento_anual
+                   FROM pesca.pesca p
+                            JOIN pesca.tipo_pez tp ON p.tipo_pez = tp.id
+                            JOIN pesca.nombre_principal np ON tp.nombre_principal = np.id
+                   GROUP BY p.año, np.nombre
+                   ORDER BY np.nombre, p.año
+)select cre_anual.año, cre_anual.Species, cre_anual.Peso_año_pasado, cre_anual.Peso_año_actual, cre_anual.crecimiento_anual
+ from cre_anual
+where cre_anual.Species = 'PULPO' or cre_anual.Species = 'CAMARON' or cre_anual.Species = 'SARDINA' or cre_anual.Species = 'ATUN' ;
+
+
+-- Esta query ayuda a calcular el prcio por kilo desembarcado de especie en un respectivo año y los organiza de mayor a menor
+With ranked_kilo_valor as (
+SELECT p.año, np.nombre AS Species, (SUM(p.valor_pesos) / SUM(p.peso_desembarcado_kg)) AS Value_Per_Kg,
+       RANK() OVER (PARTITION BY p.año ORDER BY (SUM(p.valor_pesos) / SUM(p.peso_desembarcado_kg)) DESC) AS Rank
+FROM pesca.pesca p
+JOIN pesca.tipo_pez tp ON p.tipo_pez = tp.id
+JOIN pesca.nombre_principal np ON tp.nombre_principal = np.id
+GROUP BY p.año, np.nombre
+ORDER BY p.año, Rank)
+select * from ranked_kilo_valor
+where año = 2022
+order by año, Rank desc;
+
+-- Esta query ayuda a calcular el precio por kilo desembarcado de especie en un respectivo año y los organiza de menor a mayor
+With ranked_kilo_valor as (
+SELECT p.año, np.nombre AS Species, (SUM(p.valor_pesos) / SUM(p.peso_desembarcado_kg)) AS Value_Per_Kg,
+       RANK() OVER (PARTITION BY p.año ORDER BY (SUM(p.valor_pesos) / SUM(p.peso_desembarcado_kg)) DESC) AS Rank
+FROM pesca.pesca p
+JOIN pesca.tipo_pez tp ON p.tipo_pez = tp.id
+JOIN pesca.nombre_principal np ON tp.nombre_principal = np.id
+GROUP BY p.año, np.nombre
+ORDER BY p.año, Rank)
+select * from ranked_kilo_valor
+where año = 2022
+order by año, Rank desc
